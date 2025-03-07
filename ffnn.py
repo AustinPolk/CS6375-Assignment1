@@ -10,6 +10,7 @@ import time
 from tqdm import tqdm
 import json
 from argparse import ArgumentParser
+import pickle
 
 
 unk = '<UNK>'
@@ -24,7 +25,7 @@ class FFNN(nn.Module):
         self.output_dim = 5                       # size of output layer
         self.W2 = nn.Linear(h, self.output_dim)   # output layer
 
-        self.softmax = nn.LogSoftmax()            # The softmax function that converts vectors into probability distributions; computes log probabilities for computational benefits
+        self.softmax = nn.LogSoftmax(dim=0)       # The softmax function that converts vectors into probability distributions; computes log probabilities for computational benefits
         self.loss = nn.NLLLoss()                  # The cross-entropy/negative log likelihood loss taught in class
 
     def compute_Loss(self, predicted_vector, gold_label):
@@ -116,20 +117,42 @@ if __name__ == "__main__":
     torch.manual_seed(42)
 
     # load data
-    print("========== Loading data ==========")
-    train_data, valid_data = load_data(args.train_data, args.val_data) # X_data is a list of pairs (document, y); y in {0,1,2,3,4}
-    vocab = make_vocab(train_data)
-    vocab, word2index, index2word = make_indices(vocab)
+    if not os.path.exists('train_data.pkl') or not os.path.exists('val_data.pkl'):
+        print("========== Loading data ==========")
+        train_data, valid_data = load_data(args.train_data, args.val_data) # X_data is a list of pairs (document, y); y in {0,1,2,3,4}
+        vocab = make_vocab(train_data)
+        vocab, word2index, index2word = make_indices(vocab)
 
-    print("========== Vectorizing data ==========")
-    train_data = convert_to_vector_representation(train_data, word2index)
-    valid_data = convert_to_vector_representation(valid_data, word2index)
+        print("========== Vectorizing data ==========")
+        train_data = convert_to_vector_representation(train_data, word2index)
+        valid_data = convert_to_vector_representation(valid_data, word2index)
+
+        print("========== Pickling data ===========")
+        with open('train_data.pkl', 'wb+') as f:
+            pickle.dump(train_data, f)
+        with open('val_data.pkl', 'wb+') as f:
+            pickle.dump(valid_data, f)
+    else:
+        print("========== Loading vocab ==========")
+        train_data, valid_data = load_data(args.train_data, args.val_data) # X_data is a list of pairs (document, y); y in {0,1,2,3,4}
+        vocab = make_vocab(train_data)
+        vocab, word2index, index2word = make_indices(vocab)
+
+        print("========== Unpickling data ===========")
+        with open('train_data.pkl', 'rb') as f:
+            train_data = pickle.load(f)
+        with open('val_data.pkl', 'rb') as f:
+            valid_data = pickle.load(f)
     
+
+    epoch_on_epoch = {}
 
     model = FFNN(input_dim = len(vocab), h = args.hidden_dim)
     optimizer = optim.SGD(model.parameters(),lr=0.01, momentum=0.9)
     print("========== Training for {} epochs ==========".format(args.epochs))
     for epoch in range(args.epochs):
+        epoch_on_epoch[epoch] = {}
+
         model.train()
         optimizer.zero_grad()
         loss = None
@@ -161,6 +184,8 @@ if __name__ == "__main__":
         print("Training accuracy for epoch {}: {}".format(epoch + 1, correct / total))
         print("Training time for this epoch: {}".format(time.time() - start_time))
 
+        epoch_on_epoch[epoch]['train_acc'] = correct / total
+        epoch_on_epoch[epoch]['train_t'] = time.time() - start_time
 
         loss = None
         correct = 0
@@ -188,6 +213,11 @@ if __name__ == "__main__":
         print("Validation accuracy for epoch {}: {}".format(epoch + 1, correct / total))
         print("Validation time for this epoch: {}".format(time.time() - start_time))
 
+        epoch_on_epoch[epoch]['val_acc'] = correct / total
+        epoch_on_epoch[epoch]['val_t'] = time.time() - start_time
+
     # write out to results/test.out
     torch.save(model, 'ffin_model.pt')
+    with open(f'last_model_results_h{args.hidden_dim}_e{args.epochs}.pkl', 'wb+') as f:
+        pickle.dump(epoch_on_epoch, f)
     
