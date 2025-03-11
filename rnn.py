@@ -23,7 +23,7 @@ class RNN(nn.Module):
         self.numOfLayer = 1
         self.rnn = nn.RNN(input_dim, h, self.numOfLayer, nonlinearity='tanh')
         self.W = nn.Linear(h, 5)
-        self.softmax = nn.LogSoftmax(dim=1)
+        self.softmax = nn.LogSoftmax(dim=0)
         self.loss = nn.NLLLoss()
 
     def compute_Loss(self, predicted_vector, gold_label):
@@ -31,12 +31,17 @@ class RNN(nn.Module):
 
     def forward(self, inputs):
         # [to fill] obtain hidden layer representation (https://pytorch.org/docs/stable/generated/torch.nn.RNN.html)
-        _, hidden = 
+        output, hidden = self.rnn(inputs)
+
         # [to fill] obtain output layer representations
+        output = output[:, -1, :]
+        linear = self.W(output)
 
         # [to fill] sum over output 
+        summed = torch.sum(linear, dim=0)
 
         # [to fill] obtain probability dist.
+        predicted_vector = self.softmax(summed)
 
         return predicted_vector
 
@@ -166,7 +171,7 @@ if __name__ == "__main__":
         print("Validation accuracy for epoch {}: {}".format(epoch + 1, correct / total))
         validation_accuracy = correct/total
 
-        if validation_accuracy < last_validation_accuracy and trainning_accuracy > last_train_accuracy:
+        if validation_accuracy < last_validation_accuracy and trainning_accuracy > last_train_accuracy and epoch >= args.epochs:
             stopping_condition=True
             print("Training done to avoid overfitting!")
             print("Best validation accuracy is:", last_validation_accuracy)
