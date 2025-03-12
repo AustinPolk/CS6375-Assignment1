@@ -21,57 +21,25 @@ class RNN(nn.Module):
         super(RNN, self).__init__()
         self.h = h
         self.numOfLayer = 1
-        self.rnn = nn.RNN(input_dim, h, self.numOfLayer, nonlinearity='relu')
+        self.rnn = nn.LSTM(input_dim, h, self.numOfLayer)
         self.W = nn.Linear(h, 5)
         self.softmax = nn.LogSoftmax(dim=0)
         self.loss = nn.NLLLoss()
+        self.do_sum = False
 
     def compute_Loss(self, predicted_vector, gold_label):
         return self.loss(predicted_vector, gold_label)
 
     def forward(self, inputs):
-        if False:
-            # [to fill] obtain hidden layer representation (https://pytorch.org/docs/stable/generated/torch.nn.RNN.html)
-            output, hidden = self.rnn(inputs)
+        output, _ = self.rnn(inputs)
+        x = output[:, -1, :]
+        x = self.W(x)
 
-            # [to fill] obtain output layer representations
-            output = output[:, -1, :]
-            linear = self.W(output)
-
-            # [to fill] sum over output 
-            summed = torch.sum(linear, dim=0)
-
-            # [to fill] obtain probability dist.
-            predicted_vector = self.softmax(summed)
-        elif True:
-            # [to fill] obtain hidden layer representation (https://pytorch.org/docs/stable/generated/torch.nn.RNN.html)
-            output, hidden = self.rnn(inputs)
-
-            # [to fill] obtain output layer representations
-            output = output[:, -1, :]
-            #linear = self.W(output)
-
-            # [to fill] sum over output 
-            summed = torch.sum(output, dim=0)
-            linear = self.W(summed)
-
-            # [to fill] obtain probability dist.
-            predicted_vector = self.softmax(linear)
-        elif True:
-            # [to fill] obtain hidden layer representation (https://pytorch.org/docs/stable/generated/torch.nn.RNN.html)
-            output, hidden = self.rnn(inputs)
-
-            # [to fill] obtain output layer representations
-            output = output[-1, -1, :]
-            linear = self.W(output)
-
-            # [to fill] sum over output 
-            #summed = torch.sum(output, dim=0)
-            #linear = self.W(summed)
-
-            # [to fill] obtain probability dist.
-            predicted_vector = self.softmax(linear)
-        #print(predicted_vector)
+        if self.do_sum:
+            x = torch.sum(x, dim=0)
+            predicted_vector = self.softmax(x)
+        else:
+            predicted_vector = self.softmax(x[-1])
 
         return predicted_vector
 
@@ -103,6 +71,8 @@ if __name__ == "__main__":
 
     print("========== Loading data ==========")
     train_data, valid_data = load_data(args.train_data, args.val_data) # X_data is a list of pairs (document, y); y in {0,1,2,3,4}
+    train_data = train_data[::2]
+    valid_data = valid_data[::2]
 
     # Think about the type of function that an RNN describes. To apply it, you will need to convert the text data into vector representations.
     # Further, think about where the vectors will come from. There are 3 reasonable choices:
