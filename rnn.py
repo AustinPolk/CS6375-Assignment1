@@ -21,7 +21,7 @@ class RNN(nn.Module):
         super(RNN, self).__init__()
         self.h = h
         self.numOfLayer = 1
-        self.rnn = nn.RNN(input_dim, h, self.numOfLayer, nonlinearity='tanh')
+        self.rnn = nn.RNN(input_dim, h, self.numOfLayer, nonlinearity='relu')
         self.W = nn.Linear(h, 5)
         self.softmax = nn.LogSoftmax(dim=0)
         self.loss = nn.NLLLoss()
@@ -30,18 +30,48 @@ class RNN(nn.Module):
         return self.loss(predicted_vector, gold_label)
 
     def forward(self, inputs):
-        # [to fill] obtain hidden layer representation (https://pytorch.org/docs/stable/generated/torch.nn.RNN.html)
-        output, hidden = self.rnn(inputs)
+        if False:
+            # [to fill] obtain hidden layer representation (https://pytorch.org/docs/stable/generated/torch.nn.RNN.html)
+            output, hidden = self.rnn(inputs)
 
-        # [to fill] obtain output layer representations
-        output = output[:, -1, :]
-        linear = self.W(output)
+            # [to fill] obtain output layer representations
+            output = output[:, -1, :]
+            linear = self.W(output)
 
-        # [to fill] sum over output 
-        summed = torch.sum(linear, dim=0)
+            # [to fill] sum over output 
+            summed = torch.sum(linear, dim=0)
 
-        # [to fill] obtain probability dist.
-        predicted_vector = self.softmax(summed)
+            # [to fill] obtain probability dist.
+            predicted_vector = self.softmax(summed)
+        elif True:
+            # [to fill] obtain hidden layer representation (https://pytorch.org/docs/stable/generated/torch.nn.RNN.html)
+            output, hidden = self.rnn(inputs)
+
+            # [to fill] obtain output layer representations
+            output = output[:, -1, :]
+            #linear = self.W(output)
+
+            # [to fill] sum over output 
+            summed = torch.sum(output, dim=0)
+            linear = self.W(summed)
+
+            # [to fill] obtain probability dist.
+            predicted_vector = self.softmax(linear)
+        elif True:
+            # [to fill] obtain hidden layer representation (https://pytorch.org/docs/stable/generated/torch.nn.RNN.html)
+            output, hidden = self.rnn(inputs)
+
+            # [to fill] obtain output layer representations
+            output = output[-1, -1, :]
+            linear = self.W(output)
+
+            # [to fill] sum over output 
+            #summed = torch.sum(output, dim=0)
+            #linear = self.W(summed)
+
+            # [to fill] obtain probability dist.
+            predicted_vector = self.softmax(linear)
+        #print(predicted_vector)
 
         return predicted_vector
 
@@ -93,7 +123,11 @@ if __name__ == "__main__":
     last_train_accuracy = 0
     last_validation_accuracy = 0
 
+    epoch_by_epoch = {}
+
     while not stopping_condition:
+        epoch_by_epoch[epoch] = {}
+
         random.shuffle(train_data)
         model.train()
         # You will need further code to operationalize training, ffnn.py may be helpful
@@ -104,6 +138,7 @@ if __name__ == "__main__":
         minibatch_size = 16
         N = len(train_data)
 
+        start_time = time.time()
         loss_total = 0
         loss_count = 0
         for minibatch_index in tqdm(range(N // minibatch_size)):
@@ -117,7 +152,7 @@ if __name__ == "__main__":
                 input_words = input_words.translate(input_words.maketrans("", "", string.punctuation)).split()
 
                 # Look up word embedding dictionary
-                vectors = [word_embedding[i.lower()] if i.lower() in word_embedding.keys() else word_embedding['unk'] for i in input_words ]
+                vectors = np.array([word_embedding[i.lower()] if i.lower() in word_embedding.keys() else word_embedding['unk'] for i in input_words])
 
                 # Transform the input into required shape
                 vectors = torch.tensor(vectors).view(len(vectors), 1, -1)
@@ -145,10 +180,16 @@ if __name__ == "__main__":
         print(loss_total/loss_count)
         print("Training completed for epoch {}".format(epoch + 1))
         print("Training accuracy for epoch {}: {}".format(epoch + 1, correct / total))
+        print("Training took {} seconds",format(time.time() - start_time))
         trainning_accuracy = correct/total
 
+        epoch_by_epoch[epoch]['train_acc'] = trainning_accuracy
+        epoch_by_epoch[epoch]['train_t'] = time.time() - start_time
+        epoch_by_epoch[epoch]['train_avg_loss'] = float(loss_total/loss_count)
 
         model.eval()
+
+        start_time = time.time()
         correct = 0
         total = 0
         random.shuffle(valid_data)
@@ -158,8 +199,8 @@ if __name__ == "__main__":
         for input_words, gold_label in tqdm(valid_data):
             input_words = " ".join(input_words)
             input_words = input_words.translate(input_words.maketrans("", "", string.punctuation)).split()
-            vectors = [word_embedding[i.lower()] if i.lower() in word_embedding.keys() else word_embedding['unk'] for i
-                       in input_words]
+            vectors = np.array([word_embedding[i.lower()] if i.lower() in word_embedding.keys() else word_embedding['unk'] for i
+                       in input_words])
 
             vectors = torch.tensor(vectors).view(len(vectors), 1, -1)
             output = model(vectors)
@@ -169,7 +210,11 @@ if __name__ == "__main__":
             # print(predicted_label, gold_label)
         print("Validation completed for epoch {}".format(epoch + 1))
         print("Validation accuracy for epoch {}: {}".format(epoch + 1, correct / total))
+        print("Validation took {} seconds",format(time.time() - start_time))
         validation_accuracy = correct/total
+
+        epoch_by_epoch[epoch]['val_acc'] = validation_accuracy
+        epoch_by_epoch[epoch]['val_t'] = time.time() - start_time
 
         if validation_accuracy < last_validation_accuracy and trainning_accuracy > last_train_accuracy and epoch >= args.epochs:
             stopping_condition=True
@@ -181,7 +226,9 @@ if __name__ == "__main__":
 
         epoch += 1
 
-
+    torch.save(model, 'rnn_model.pt')
+    with open(f'rnn_last_model_results_h{args.hidden_dim}_e{epoch-1}.pkl', 'wb+') as f:
+        pickle.dump(epoch_by_epoch, f)
 
     # You may find it beneficial to keep track of training accuracy or training loss;
 

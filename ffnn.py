@@ -218,6 +218,6 @@ if __name__ == "__main__":
 
     # write out to results/test.out
     torch.save(model, 'ffin_model.pt')
-    with open(f'last_model_results_h{args.hidden_dim}_e{args.epochs}.pkl', 'wb+') as f:
+    with open(f'ffnn_last_model_results_h{args.hidden_dim}_e{args.epochs}.pkl', 'wb+') as f:
         pickle.dump(epoch_on_epoch, f)
     
