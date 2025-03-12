@@ -20,10 +20,20 @@ class RNN(nn.Module):
     def __init__(self, input_dim, h):  # Add relevant parameters
         super(RNN, self).__init__()
         self.h = h
-        self.numOfLayer = 1
+        self.numOfLayer = 2
         self.rnn = nn.LSTM(input_dim, h, self.numOfLayer)
-        self.W = nn.Linear(h, 5)
-        self.softmax = nn.LogSoftmax(dim=0)
+        # self.W = nn.Linear(h, 25)
+        # self.tanh = nn.Tanh()
+        # self.X = nn.Linear(25, 5)
+        self.W = nn.Sequential(
+            #nn.Linear(h, 5)
+            nn.Linear(h, 25),
+            #nn.ReLU(),
+            nn.Linear(25, 5),
+            #nn.ReLU()
+            nn.LogSoftmax(dim=0),
+        )
+        #self.softmax = nn.LogSoftmax(dim=0)
         self.loss = nn.NLLLoss()
         self.do_sum = False
 
@@ -33,13 +43,15 @@ class RNN(nn.Module):
     def forward(self, inputs):
         output, _ = self.rnn(inputs)
         x = output[:, -1, :]
-        x = self.W(x)
+        #x = self.W(x)
+        # x = self.tanh(x)
+        # x = self.X(x)
 
-        if self.do_sum:
-            x = torch.sum(x, dim=0)
-            predicted_vector = self.softmax(x)
-        else:
-            predicted_vector = self.softmax(x[-1])
+        # if self.do_sum:
+        #     x = torch.sum(x, dim=0)
+        #     predicted_vector = self.softmax(x)
+        # else:
+        predicted_vector = self.W(x[-1])
 
         return predicted_vector
 
@@ -71,8 +83,8 @@ if __name__ == "__main__":
 
     print("========== Loading data ==========")
     train_data, valid_data = load_data(args.train_data, args.val_data) # X_data is a list of pairs (document, y); y in {0,1,2,3,4}
-    train_data = train_data[::2]
-    valid_data = valid_data[::2]
+    #train_data = train_data[::2]
+    #valid_data = valid_data[::2]
 
     # Think about the type of function that an RNN describes. To apply it, you will need to convert the text data into vector representations.
     # Further, think about where the vectors will come from. There are 3 reasonable choices:
@@ -197,7 +209,7 @@ if __name__ == "__main__":
         epoch += 1
 
     torch.save(model, 'rnn_model.pt')
-    with open(f'rnn_last_model_results_h{args.hidden_dim}_e{epoch-1}.pkl', 'wb+') as f:
+    with open(f'rnn_last_model_results_h{args.hidden_dim}_e{epoch-1}_l{model.numOfLayer}.pkl', 'wb+') as f:
         pickle.dump(epoch_by_epoch, f)
 
     # You may find it beneficial to keep track of training accuracy or training loss;
