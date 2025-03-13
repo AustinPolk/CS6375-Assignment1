@@ -27,10 +27,11 @@ class RNN(nn.Module):
         # self.X = nn.Linear(25, 5)
         self.W = nn.Sequential(
             #nn.Linear(h, 5)
-            nn.Linear(h, 25),
-            #nn.ReLU(),
-            nn.Linear(25, 5),
-            #nn.ReLU()
+            nn.Linear(h, 5),
+            #nn.Linear(50, 25),
+            #nn.ELU(inplace=True),
+            #nn.Linear(25, 5),
+            #nn.ELU(inplace=True),
             nn.LogSoftmax(dim=0),
         )
         #self.softmax = nn.LogSoftmax(dim=0)
@@ -83,8 +84,8 @@ if __name__ == "__main__":
 
     print("========== Loading data ==========")
     train_data, valid_data = load_data(args.train_data, args.val_data) # X_data is a list of pairs (document, y); y in {0,1,2,3,4}
-    #train_data = train_data[::2]
-    #valid_data = valid_data[::2]
+    #train_data = train_data[::3]
+    #valid_data = valid_data[::3]
 
     # Think about the type of function that an RNN describes. To apply it, you will need to convert the text data into vector representations.
     # Further, think about where the vectors will come from. There are 3 reasonable choices:
@@ -95,8 +96,8 @@ if __name__ == "__main__":
 
     print("========== Vectorizing data ==========")
     model = RNN(50, args.hidden_dim)  # Fill in parameters
-    # optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
-    optimizer = optim.Adam(model.parameters(), lr=0.01)
+    optimizer = optim.SGD(model.parameters(), lr=0.03, momentum=0.9)
+    #optimizer = optim.Adam(model.parameters(), lr=0.03)
     word_embedding = pickle.load(open('./word_embedding.pkl', 'rb'))
 
     stopping_condition = False
@@ -117,7 +118,7 @@ if __name__ == "__main__":
         train_data = train_data
         correct = 0
         total = 0
-        minibatch_size = 16
+        minibatch_size = 8
         N = len(train_data)
 
         start_time = time.time()
@@ -209,7 +210,7 @@ if __name__ == "__main__":
         epoch += 1
 
     torch.save(model, 'rnn_model.pt')
-    with open(f'rnn_last_model_results_h{args.hidden_dim}_e{epoch-1}_l{model.numOfLayer}.pkl', 'wb+') as f:
+    with open(f'rnn_last_model_results_h{args.hidden_dim}_e{epoch-1}_l{model.numOfLayer}_m{minibatch_size}.pkl', 'wb+') as f:
         pickle.dump(epoch_by_epoch, f)
 
     # You may find it beneficial to keep track of training accuracy or training loss;
