@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 from torch.nn import init
 import torch.optim as optim
+from torch.optim.lr_scheduler import StepLR
 import math
 import random
 import os
@@ -12,6 +13,7 @@ import json
 import string
 from argparse import ArgumentParser
 import pickle
+from ffnn import FFNN
 
 unk = '<UNK>'
 # Consult the PyTorch documentation for information on the functions used below:
@@ -22,21 +24,10 @@ class RNN(nn.Module):
         self.h = h
         self.numOfLayer = 2
         self.rnn = nn.LSTM(input_dim, h, self.numOfLayer)
-        # self.W = nn.Linear(h, 25)
-        # self.tanh = nn.Tanh()
-        # self.X = nn.Linear(25, 5)
-        self.W = nn.Sequential(
-            #nn.Linear(h, 5)
-            nn.Linear(h, 5),
-            #nn.Linear(50, 25),
-            #nn.ELU(inplace=True),
-            #nn.Linear(25, 5),
-            #nn.ELU(inplace=True),
-            nn.LogSoftmax(dim=0),
-        )
+        self.W = FFNN(h, 25)
         #self.softmax = nn.LogSoftmax(dim=0)
         self.loss = nn.NLLLoss()
-        self.do_sum = False
+        #self.do_sum = False
 
     def compute_Loss(self, predicted_vector, gold_label):
         return self.loss(predicted_vector, gold_label)
@@ -44,14 +35,6 @@ class RNN(nn.Module):
     def forward(self, inputs):
         output, _ = self.rnn(inputs)
         x = output[:, -1, :]
-        #x = self.W(x)
-        # x = self.tanh(x)
-        # x = self.X(x)
-
-        # if self.do_sum:
-        #     x = torch.sum(x, dim=0)
-        #     predicted_vector = self.softmax(x)
-        # else:
         predicted_vector = self.W(x[-1])
 
         return predicted_vector
@@ -96,7 +79,8 @@ if __name__ == "__main__":
 
     print("========== Vectorizing data ==========")
     model = RNN(50, args.hidden_dim)  # Fill in parameters
-    optimizer = optim.SGD(model.parameters(), lr=0.03, momentum=0.9)
+    optimizer = optim.SGD(model.parameters(), lr=0.1, momentum=0)
+    scheduler = StepLR(optimizer, 5, 0.5)
     #optimizer = optim.Adam(model.parameters(), lr=0.03)
     word_embedding = pickle.load(open('./word_embedding.pkl', 'rb'))
 
@@ -160,6 +144,7 @@ if __name__ == "__main__":
             loss_count += 1
             loss.backward()
             optimizer.step()
+        scheduler.step()
         print(loss_total/loss_count)
         print("Training completed for epoch {}".format(epoch + 1))
         print("Training accuracy for epoch {}: {}".format(epoch + 1, correct / total))
