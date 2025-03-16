@@ -153,6 +153,9 @@ if __name__ == "__main__":
         print("Validation started for epoch {}".format(epoch + 1))
         valid_data = valid_data
 
+        loss_total = 0
+        loss_count = 0
+
         for input_words, gold_label in tqdm(valid_data):
             input_words = " ".join(input_words)
             input_words = input_words.translate(input_words.maketrans("", "", string.punctuation)).split()
@@ -162,9 +165,15 @@ if __name__ == "__main__":
             vectors = torch.tensor(vectors).view(len(vectors), 1, -1)
             output = model(vectors)
             predicted_label = torch.argmax(output)
+
+            example_loss = model.compute_Loss(output.view(1,-1), torch.tensor([gold_label]))
+            loss_total += example_loss.data
+            loss_count += 1
+
             correct += int(predicted_label == gold_label)
             total += 1
             # print(predicted_label, gold_label)
+        print(loss_total/loss_count)
         print("Validation completed for epoch {}".format(epoch + 1))
         print("Validation accuracy for epoch {}: {}".format(epoch + 1, correct / total))
         print("Validation took {} seconds",format(time.time() - start_time))
@@ -172,6 +181,7 @@ if __name__ == "__main__":
 
         epoch_by_epoch[epoch]['val_acc'] = validation_accuracy
         epoch_by_epoch[epoch]['val_t'] = time.time() - start_time
+        epoch_by_epoch[epoch]['val_avg_loss'] = float(loss_total/loss_count)
 
         if args.val2_data:
             model.eval()
@@ -183,6 +193,9 @@ if __name__ == "__main__":
             print("Extra validation started for epoch {}".format(epoch + 1))
             valid2_data = valid2_data
 
+            loss_total = 0
+            loss_count = 0
+
             for input_words, gold_label in tqdm(valid2_data):
                 input_words = " ".join(input_words)
                 input_words = input_words.translate(input_words.maketrans("", "", string.punctuation)).split()
@@ -192,9 +205,15 @@ if __name__ == "__main__":
                 vectors = torch.tensor(vectors).view(len(vectors), 1, -1)
                 output = model(vectors)
                 predicted_label = torch.argmax(output)
+
+                example_loss = model.compute_Loss(output.view(1,-1), torch.tensor([gold_label]))
+                loss_total += example_loss.data
+                loss_count += 1
+
                 correct += int(predicted_label == gold_label)
                 total += 1
                 # print(predicted_label, gold_label)
+            print(loss_total/loss_count)
             print("Extra validation completed for epoch {}".format(epoch + 1))
             print("Extra validation accuracy for epoch {}: {}".format(epoch + 1, correct / total))
             print("Extra validation took {} seconds",format(time.time() - start_time))
@@ -202,6 +221,7 @@ if __name__ == "__main__":
 
             epoch_by_epoch[epoch]['val2_acc'] = validation2_accuracy
             epoch_by_epoch[epoch]['val2_t'] = time.time() - start_time
+            epoch_by_epoch[epoch]['val2_avg_loss'] = float(loss_total/loss_count)
 
         if epoch >= args.epochs:
             stopping_condition=True
