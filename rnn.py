@@ -22,12 +22,11 @@ class RNN(nn.Module):
     def __init__(self, input_dim, h):  # Add relevant parameters
         super(RNN, self).__init__()
         self.h = h
-        self.numOfLayer = 2
+        self.numOfLayer = 1
         self.rnn = nn.LSTM(input_dim, h, self.numOfLayer)
-        self.W = FFNN(h, 25)
-        #self.softmax = nn.LogSoftmax(dim=0)
+        self.softmax = nn.LogSoftmax(dim=0)
+        self.W = FFNN(h, 32)
         self.loss = nn.NLLLoss()
-        #self.do_sum = False
 
     def compute_Loss(self, predicted_vector, gold_label):
         return self.loss(predicted_vector, gold_label)
@@ -35,24 +34,28 @@ class RNN(nn.Module):
     def forward(self, inputs):
         output, _ = self.rnn(inputs)
         x = output[:, -1, :]
-        predicted_vector = self.W(x[-1])
+        return self.W(x[-1])
 
-        return predicted_vector
-
-
-def load_data(train_data, val_data):
+def load_data(train_data, val_data, val2_data):
     with open(train_data) as training_f:
         training = json.load(training_f)
     with open(val_data) as valid_f:
         validation = json.load(valid_f)
+    if val2_data:
+        with open(val2_data) as valid2_f:
+            validation2 = json.load(valid2_f)
 
     tra = []
     val = []
+    val2 = []
     for elt in training:
         tra.append((elt["text"].split(),int(elt["stars"]-1)))
     for elt in validation:
         val.append((elt["text"].split(),int(elt["stars"]-1)))
-    return tra, val
+    if val2_data:
+        for elt in validation2:
+            val2.append((elt["text"].split(),int(elt["stars"]-1)))
+    return tra, val, val2
 
 
 if __name__ == "__main__":
@@ -61,34 +64,21 @@ if __name__ == "__main__":
     parser.add_argument("-e", "--epochs", type=int, required = True, help = "num of epochs to train")
     parser.add_argument("--train_data", required = True, help = "path to training data")
     parser.add_argument("--val_data", required = True, help = "path to validation data")
-    parser.add_argument("--test_data", default = "to fill", help = "path to test data")
+    parser.add_argument("--val2_data", default = None, help = "path to extra validation data")
     parser.add_argument('--do_train', action='store_true')
     args = parser.parse_args()
 
     print("========== Loading data ==========")
-    train_data, valid_data = load_data(args.train_data, args.val_data) # X_data is a list of pairs (document, y); y in {0,1,2,3,4}
-    #train_data = train_data[::3]
-    #valid_data = valid_data[::3]
-
-    # Think about the type of function that an RNN describes. To apply it, you will need to convert the text data into vector representations.
-    # Further, think about where the vectors will come from. There are 3 reasonable choices:
-    # 1) Randomly assign the input to vectors and learn better embeddings during training; see the PyTorch documentation for guidance
-    # 2) Assign the input to vectors using pretrained word embeddings. We recommend any of {Word2Vec, GloVe, FastText}. Then, you do not train/update these embeddings.
-    # 3) You do the same as 2) but you train (this is called fine-tuning) the pretrained embeddings further.
-    # Option 3 will be the most time consuming, so we do not recommend starting with this
-
+    train_data, valid_data, valid2_data = load_data(args.train_data, args.val_data, args.val2_data) # X_data is a list of pairs (document, y); y in {0,1,2,3,4}
+    
     print("========== Vectorizing data ==========")
     model = RNN(50, args.hidden_dim)  # Fill in parameters
-    optimizer = optim.SGD(model.parameters(), lr=0.1, momentum=0)
-    scheduler = StepLR(optimizer, 5, 0.5)
+    optimizer = optim.SGD(model.parameters(), lr=0.075, momentum=0)
     #optimizer = optim.Adam(model.parameters(), lr=0.03)
     word_embedding = pickle.load(open('./word_embedding.pkl', 'rb'))
 
     stopping_condition = False
     epoch = 0
-
-    last_train_accuracy = 0
-    last_validation_accuracy = 0
 
     epoch_by_epoch = {}
 
@@ -144,7 +134,6 @@ if __name__ == "__main__":
             loss_count += 1
             loss.backward()
             optimizer.step()
-        scheduler.step()
         print(loss_total/loss_count)
         print("Training completed for epoch {}".format(epoch + 1))
         print("Training accuracy for epoch {}: {}".format(epoch + 1, correct / total))
@@ -184,20 +173,41 @@ if __name__ == "__main__":
         epoch_by_epoch[epoch]['val_acc'] = validation_accuracy
         epoch_by_epoch[epoch]['val_t'] = time.time() - start_time
 
-        if validation_accuracy < last_validation_accuracy and trainning_accuracy > last_train_accuracy and epoch >= args.epochs:
+        if args.val2_data:
+            model.eval()
+
+            start_time = time.time()
+            correct = 0
+            total = 0
+            random.shuffle(valid2_data)
+            print("Extra validation started for epoch {}".format(epoch + 1))
+            valid2_data = valid2_data
+
+            for input_words, gold_label in tqdm(valid2_data):
+                input_words = " ".join(input_words)
+                input_words = input_words.translate(input_words.maketrans("", "", string.punctuation)).split()
+                vectors = np.array([word_embedding[i.lower()] if i.lower() in word_embedding.keys() else word_embedding['unk'] for i
+                        in input_words])
+
+                vectors = torch.tensor(vectors).view(len(vectors), 1, -1)
+                output = model(vectors)
+                predicted_label = torch.argmax(output)
+                correct += int(predicted_label == gold_label)
+                total += 1
+                # print(predicted_label, gold_label)
+            print("Extra validation completed for epoch {}".format(epoch + 1))
+            print("Extra validation accuracy for epoch {}: {}".format(epoch + 1, correct / total))
+            print("Extra validation took {} seconds",format(time.time() - start_time))
+            validation2_accuracy = correct/total
+
+            epoch_by_epoch[epoch]['val2_acc'] = validation2_accuracy
+            epoch_by_epoch[epoch]['val2_t'] = time.time() - start_time
+
+        if epoch >= args.epochs:
             stopping_condition=True
-            print("Training done to avoid overfitting!")
-            print("Best validation accuracy is:", last_validation_accuracy)
-        else:
-            last_validation_accuracy = validation_accuracy
-            last_train_accuracy = trainning_accuracy
+            print("Training done!")
 
         epoch += 1
 
-    torch.save(model, 'rnn_model.pt')
-    with open(f'rnn_last_model_results_h{args.hidden_dim}_e{epoch-1}_l{model.numOfLayer}_m{minibatch_size}.pkl', 'wb+') as f:
+    with open(f'rnn_training_results_h{args.hidden_dim}.pkl', 'wb+') as f:
         pickle.dump(epoch_by_epoch, f)
-
-    # You may find it beneficial to keep track of training accuracy or training loss;
-
-    # Think about how to update the model and what this entails. Consider ffnn.py and the PyTorch documentation for guidance
