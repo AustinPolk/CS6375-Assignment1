@@ -158,6 +158,10 @@ if __name__ == "__main__":
         loss = None
         correct = 0
         total = 0
+
+        loss_total = 0
+        loss_count = 0
+
         start_time = time.time()
         print("Training started for epoch {}".format(epoch + 1))
         random.shuffle(train_data) # Good practice to shuffle order of training data
@@ -173,6 +177,8 @@ if __name__ == "__main__":
                 correct += int(predicted_label == gold_label)
                 total += 1
                 example_loss = model.compute_Loss(predicted_vector.view(1,-1), torch.tensor([gold_label]))
+                loss_total += example_loss.data
+                loss_count += 1
                 if loss is None:
                     loss = example_loss
                 else:
@@ -186,10 +192,15 @@ if __name__ == "__main__":
 
         epoch_on_epoch[epoch]['train_acc'] = correct / total
         epoch_on_epoch[epoch]['train_t'] = time.time() - start_time
+        epoch_on_epoch[epoch]['train_loss'] = loss_total / loss_count
 
         loss = None
         correct = 0
         total = 0
+
+        loss_total = 0
+        loss_count = 0
+
         start_time = time.time()
         print("Validation started for epoch {}".format(epoch + 1))
         minibatch_size = 16 
@@ -204,6 +215,8 @@ if __name__ == "__main__":
                 correct += int(predicted_label == gold_label)
                 total += 1
                 example_loss = model.compute_Loss(predicted_vector.view(1,-1), torch.tensor([gold_label]))
+                loss_total += example_loss.data
+                loss_count += 1
                 if loss is None:
                     loss = example_loss
                 else:
@@ -215,6 +228,7 @@ if __name__ == "__main__":
 
         epoch_on_epoch[epoch]['val_acc'] = correct / total
         epoch_on_epoch[epoch]['val_t'] = time.time() - start_time
+        epoch_on_epoch[epoch]['val_loss'] = loss_total / loss_count
 
     # write out to results/test.out
     torch.save(model, 'ffin_model.pt')
