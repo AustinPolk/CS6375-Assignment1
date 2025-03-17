@@ -19,7 +19,7 @@ unk = '<UNK>'
 # Consult the PyTorch documentation for information on the functions used below:
 # https://pytorch.org/docs/stable/torch.html
 class RNN(nn.Module):
-    def __init__(self, input_dim, h):  # Add relevant parameters
+    def __init__(self, input_dim, h):
         super(RNN, self).__init__()
         self.h = h
         self.numOfLayer = 1
